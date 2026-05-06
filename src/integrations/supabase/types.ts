@@ -14,13 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          balance: number
+          created_at: string
+          full_name: string
+          id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          full_name: string
+          id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          full_name?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          receiver_id: string
+          sender_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          receiver_id: string
+          sender_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          receiver_id?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_receiver_id_fkey"
+            columns: ["receiver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      transfer_money: {
+        Args: { amt: number; receiver: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
