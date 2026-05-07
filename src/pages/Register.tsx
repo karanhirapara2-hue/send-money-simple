@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -13,9 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-type Step = "phone" | "otp" | "details";
+type Step = "phone" | "details";
 
 const COUNTRY_CODES = [
   { code: "+1", label: "United States (+1)" },
@@ -35,6 +36,8 @@ const COUNTRY_CODES = [
   { code: "+52", label: "Mexico (+52)" },
 ];
 
+const RESEND_SECONDS = 60;
+
 const Register = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
@@ -43,11 +46,23 @@ const Register = () => {
   const [countryCode, setCountryCode] = useState("+1");
   const [phone, setPhone] = useState("");
   const [generatedOtp, setGeneratedOtp] = useState("");
-  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpDigits, setOtpDigits] = useState<string[]>(["", "", "", "", "", ""]);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [verifying, setVerifying] = useState(false);
+  const [otpError, setOtpError] = useState("");
+  const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
+
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (secondsLeft <= 0) return;
+    const t = setInterval(() => setSecondsLeft((s) => s - 1), 1000);
+    return () => clearInterval(t);
+  }, [secondsLeft]);
 
   if (!loading && user) return <Navigate to="/" replace />;
 
@@ -58,15 +73,63 @@ const Register = () => {
     }
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedOtp(code);
-    setStep("otp");
-    toast.success(`OTP sent to ${countryCode} ${phone}: ${code}`, { description: "Demo mode — code shown here" });
+    setOtpSent(true);
+    setOtpDigits(["", "", "", "", "", ""]);
+    setOtpError("");
+    setSecondsLeft(RESEND_SECONDS);
+    toast.success(`OTP sent to ${countryCode} ${phone}: ${code}`, {
+      description: "Demo mode — code shown here",
+    });
+    setTimeout(() => inputsRef.current[0]?.focus(), 50);
   };
 
-  const verifyOtp = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (otp !== generatedOtp) return toast.error("Incorrect OTP");
+  const verifyOtp = async (code: string) => {
+    setVerifying(true);
+    setOtpError("");
+    await new Promise((r) => setTimeout(r, 800));
+    if (code !== generatedOtp) {
+      setVerifying(false);
+      setOtpError("Incorrect OTP. Please try again.");
+      setOtpDigits(["", "", "", "", "", ""]);
+      setTimeout(() => inputsRef.current[0]?.focus(), 50);
+      return;
+    }
+    setVerifying(false);
     toast.success("Phone verified");
     setStep("details");
+  };
+
+  const handleDigitChange = (idx: number, value: string) => {
+    const d = value.replace(/\D/g, "").slice(-1);
+    const next = [...otpDigits];
+    next[idx] = d;
+    setOtpDigits(next);
+    if (otpError) setOtpError("");
+    if (d && idx < 5) inputsRef.current[idx + 1]?.focus();
+    if (next.every((x) => x !== "") && next.join("").length === 6) {
+      verifyOtp(next.join(""));
+    }
+  };
+
+  const handleKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && !otpDigits[idx] && idx > 0) {
+      inputsRef.current[idx - 1]?.focus();
+    } else if (e.key === "ArrowLeft" && idx > 0) {
+      inputsRef.current[idx - 1]?.focus();
+    } else if (e.key === "ArrowRight" && idx < 5) {
+      inputsRef.current[idx + 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (!text) return;
+    e.preventDefault();
+    const next = ["", "", "", "", "", ""];
+    for (let i = 0; i < text.length; i++) next[i] = text[i];
+    setOtpDigits(next);
+    inputsRef.current[Math.min(text.length, 5)]?.focus();
+    if (text.length === 6) verifyOtp(text);
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -88,12 +151,20 @@ const Register = () => {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-4">
+      {verifying && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Verifying OTP...</p>
+          </div>
+        </div>
+      )}
+
       <Card className="w-full max-w-md p-8 space-y-6">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold">Create account</h1>
           <p className="text-sm text-muted-foreground">
             {step === "phone" && "Verify your phone number to begin."}
-            {step === "otp" && "Enter the 6-digit code we sent."}
             {step === "details" && "Get $1,000 starting balance."}
           </p>
         </div>
@@ -129,31 +200,40 @@ const Register = () => {
                 />
               </div>
             </div>
-            <Button type="submit" className="w-full">Send OTP</Button>
-          </form>
-        )}
 
-        {step === "otp" && (
-          <form onSubmit={verifyOtp} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="otp">Enter OTP</Label>
-              <Input
-                id="otp"
-                inputMode="numeric"
-                maxLength={6}
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full">Verify</Button>
-            <button
-              type="button"
-              className="text-sm text-muted-foreground hover:text-foreground w-full"
-              onClick={() => setStep("phone")}
-            >
-              Change phone number
-            </button>
+            <Button type="submit" className="w-full" disabled={secondsLeft > 0}>
+              {secondsLeft > 0
+                ? `Resend OTP in ${secondsLeft}s`
+                : otpSent
+                ? "Resend OTP"
+                : "Send OTP"}
+            </Button>
+
+            {otpSent && (
+              <div className="space-y-3 pt-2">
+                <Label>Enter 6-digit OTP</Label>
+                <div className="flex justify-between gap-2">
+                  {otpDigits.map((d, i) => (
+                    <input
+                      key={i}
+                      ref={(el) => (inputsRef.current[i] = el)}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={d}
+                      disabled={verifying}
+                      onChange={(e) => handleDigitChange(i, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(i, e)}
+                      onPaste={handlePaste}
+                      className="h-12 w-12 rounded-md border border-input bg-background text-center text-lg font-medium focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                    />
+                  ))}
+                </div>
+                {otpError && (
+                  <p className="text-sm text-destructive">{otpError}</p>
+                )}
+              </div>
+            )}
           </form>
         )}
 
