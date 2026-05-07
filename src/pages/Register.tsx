@@ -6,15 +6,41 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 
 type Step = "phone" | "otp" | "details";
+
+const COUNTRY_CODES = [
+  { code: "+1", label: "United States (+1)" },
+  { code: "+44", label: "United Kingdom (+44)" },
+  { code: "+91", label: "India (+91)" },
+  { code: "+61", label: "Australia (+61)" },
+  { code: "+81", label: "Japan (+81)" },
+  { code: "+86", label: "China (+86)" },
+  { code: "+49", label: "Germany (+49)" },
+  { code: "+33", label: "France (+33)" },
+  { code: "+55", label: "Brazil (+55)" },
+  { code: "+971", label: "UAE (+971)" },
+  { code: "+92", label: "Pakistan (+92)" },
+  { code: "+880", label: "Bangladesh (+880)" },
+  { code: "+234", label: "Nigeria (+234)" },
+  { code: "+27", label: "South Africa (+27)" },
+  { code: "+52", label: "Mexico (+52)" },
+];
 
 const Register = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
   const [step, setStep] = useState<Step>("phone");
+  const [countryCode, setCountryCode] = useState("+1");
   const [phone, setPhone] = useState("");
   const [generatedOtp, setGeneratedOtp] = useState("");
   const [otp, setOtp] = useState("");
@@ -33,7 +59,7 @@ const Register = () => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedOtp(code);
     setStep("otp");
-    toast.success(`OTP sent: ${code}`, { description: "Demo mode — code shown here" });
+    toast.success(`OTP sent to ${countryCode} ${phone}: ${code}`, { description: "Demo mode — code shown here" });
   };
 
   const verifyOtp = (e: React.FormEvent) => {
@@ -51,7 +77,7 @@ const Register = () => {
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/`,
-        data: { full_name: fullName, phone },
+        data: { full_name: fullName, phone: `${countryCode}${phone}` },
       },
     });
     setBusy(false);
@@ -75,15 +101,33 @@ const Register = () => {
         {step === "phone" && (
           <form onSubmit={sendOtp} className="space-y-4">
             <div className="space-y-2">
+              <Label>Country</Label>
+              <Select value={countryCode} onValueChange={setCountryCode}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {COUNTRY_CODES.map((c) => (
+                    <SelectItem key={c.code} value={c.code}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="phone">Phone number</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="+1234567890"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                required
-              />
+              <div className="flex gap-2">
+                <div className="flex items-center px-3 rounded-md border bg-muted text-sm text-muted-foreground">
+                  {countryCode}
+                </div>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="1234567890"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                  required
+                />
+              </div>
             </div>
             <Button type="submit" className="w-full">Send OTP</Button>
           </form>
