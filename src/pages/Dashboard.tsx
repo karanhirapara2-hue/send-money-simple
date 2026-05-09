@@ -71,9 +71,16 @@ const Dashboard = () => {
       <div className="max-w-3xl mx-auto space-y-6">
         <header className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">Wallet</h1>
-          <Button variant="ghost" size="sm" onClick={signOut}>
-            <LogOut className="w-4 h-4 mr-2" /> Sign out
-          </Button>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Button asChild variant="outline" size="sm">
+                <Link to="/admin"><Shield className="w-4 h-4 mr-2" /> Admin</Link>
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={signOut}>
+              <LogOut className="w-4 h-4 mr-2" /> Sign out
+            </Button>
+          </div>
         </header>
 
         <Card className="p-6 bg-primary text-primary-foreground">
