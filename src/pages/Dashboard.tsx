@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { fetchProfiles, sendMoney } from "@/services/wallet";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { LogOut, Wallet } from "lucide-react";
+import { LogOut, Shield, Wallet } from "lucide-react";
 
 type Profile = { id: string; full_name: string; balance: number };
 
@@ -18,6 +19,7 @@ const Dashboard = () => {
   const [receiver, setReceiver] = useState("");
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const load = async () => {
     try {
@@ -28,7 +30,17 @@ const Dashboard = () => {
     }
   };
 
-  useEffect(() => { if (user) load(); }, [user]);
+  useEffect(() => {
+    if (!user) return;
+    load();
+    supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle()
+      .then(({ data }) => setIsAdmin(!!data));
+  }, [user]);
 
   if (!loading && !user) return <Navigate to="/login" replace />;
   if (loading) return null;
